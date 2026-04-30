@@ -14,7 +14,7 @@ import type {
   BuilderIntent,
   Ingredient,
   ManifestDefinition
-} from '@contentauth/c2pa-types';
+} from '@stardustproof/c2pa-types';
 import { Settings, settingsToWasmJson } from './settings.js';
 
 /**

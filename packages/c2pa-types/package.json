@@ -1,5 +1,5 @@
 {
-  "name": "@contentauth/c2pa-types",
+  "name": "@stardustproof/c2pa-types",
   "description": "Typescript types generated from c2pa-rs",
   "repository": {
     "type": "git",

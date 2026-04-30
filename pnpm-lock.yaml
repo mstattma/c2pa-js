@@ -121,10 +121,10 @@ importers:
 
   packages/c2pa-web:
     dependencies:
-      '@contentauth/c2pa-types':
+      '@stardustproof/c2pa-types':
         specifier: workspace:*
         version: link:../c2pa-types
-      '@contentauth/c2pa-wasm':
+      '@stardustproof/c2pa-wasm':
         specifier: workspace:*
         version: link:../c2pa-wasm
       highgain:
@@ -185,10 +185,10 @@ importers:
 
   tools/testbed:
     dependencies:
-      '@contentauth/c2pa-wasm':
+      '@stardustproof/c2pa-wasm':
         specifier: workspace:*
         version: link:../../packages/c2pa-wasm
-      '@contentauth/c2pa-web':
+      '@stardustproof/c2pa-web':
         specifier: workspace:*
         version: link:../../packages/c2pa-web
     devDependencies:

@@ -46,14 +46,14 @@ export default defineConfig(() => ({
         index: 'src/index.ts',
         inline: 'src/inline.ts'
       },
-      name: '@contentauth/c2pa-web',
+      name: '@stardustproof/c2pa-web',
       // Change this to the formats you want to support.
       // Don't forget to update your package.json as well.
       formats: ['es' as const]
     },
     rollupOptions: {
       // External packages that should not be bundled into your library.
-      external: ['@contentauth/c2pa-types', 'highgain', 'ts-deepmerge']
+      external: ['@stardustproof/c2pa-types', 'highgain', 'ts-deepmerge']
     }
   },
   server: {

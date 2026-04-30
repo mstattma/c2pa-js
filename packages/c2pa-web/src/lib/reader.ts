@@ -7,7 +7,7 @@
  * it.
  */
 
-import { Manifest, ManifestStore } from '@contentauth/c2pa-types';
+import { Manifest, ManifestStore } from '@stardustproof/c2pa-types';
 import { AssetTooLargeError, UnsupportedFormatError } from './error.js';
 import { isSupportedReaderFormat } from './supportedFormats.js';
 import type { WorkerManager } from './worker/workerManager.js';

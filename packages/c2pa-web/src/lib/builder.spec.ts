@@ -8,11 +8,11 @@
  */
 
 import { test, describe, expect } from 'test/methods.js';
-import { ManifestDefinition, Ingredient } from '@contentauth/c2pa-types';
+import { ManifestDefinition, Ingredient } from '@stardustproof/c2pa-types';
 import { getBlobForAsset } from 'test/utils.js';
 import { Settings } from './settings.js';
 import { createC2pa } from './c2pa.js';
-import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
+import wasmSrc from '@stardustproof/c2pa-web/resources/c2pa.wasm?url';
 
 import C_JPG from 'test/assets/C.jpg';
 import PirateShip_cloud from 'test/assets/PirateShip_save_credentials_to_cloud.jpg';

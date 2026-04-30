@@ -12,7 +12,7 @@ import { createC2pa } from './c2pa.js';
 import { Settings } from './settings.js';
 import { getBlobForAsset } from 'test/utils.js';
 
-import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
+import wasmSrc from '@stardustproof/c2pa-web/resources/c2pa.wasm?url';
 
 import C_with_CAWG_data from 'test/assets/C_with_CAWG_data.jpg';
 import C_with_CAWG_data_thumbnail from 'test/assets/C_with_CAWG_data_thumbnail.jpg';
@@ -29,7 +29,7 @@ import dashinit_ManifestStore from 'test/manifests/dashinit.js';
 import anchor_correct from 'test/trust/anchor-correct.pem?raw';
 import anchor_cawg from 'test/trust/anchor-cawg.pem?raw';
 import anchor_incorrect from 'test/trust/anchor-incorrect.pem?raw';
-import { ManifestStore } from '@contentauth/c2pa-types';
+import { ManifestStore } from '@stardustproof/c2pa-types';
 
 describe('reader', () => {
   describe('creation', () => {

@@ -8,7 +8,7 @@
  */
 import { createWorkerManager } from './worker/workerManager.js';
 import { createReaderFactory, ReaderFactory } from './reader.js';
-import { WASM_SRI } from '@contentauth/c2pa-wasm';
+import { WASM_SRI } from '@stardustproof/c2pa-wasm';
 import { Settings, settingsToWasmJson } from './settings.js';
 import { BuilderFactory, createBuilderFactory } from './builder.js';
 
