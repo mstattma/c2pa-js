@@ -1,0 +1,127 @@
+name: Fragment Offset Qualification
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-pair:
+    name: Candidate SDK + Web (Chromium and Firefox)
+    # OWNER-authored, same-fork PRs only. Draft PRs run too; no label or dispatch needed.
+    if: >-
+      ${{ github.repository == 'mstattma/c2pa-js' &&
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == 'mstattma/c2pa-js' &&
+        github.event.pull_request.head.ref == 'feat/upstream-fragment-base-offset' &&
+        github.event.pull_request.user.login == 'mstattma' &&
+        github.event.pull_request.author_association == 'OWNER' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      QUALIFICATION_JS_SHA: ${{ github.event.pull_request.head.sha }}
+      RUSTUP_TOOLCHAIN: '1.96.0'
+      NX_DAEMON: 'false'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_NO_CLOUD: 'true'
+    defaults:
+      run:
+        shell: bash --noprofile --norc -eo pipefail {0}
+    steps:
+      - name: Isolate runner state
+        run: |
+          echo "EVIDENCE=$RUNNER_TEMP/fragment-offset-evidence" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$RUNNER_TEMP/qualification-cargo" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.22.1'
+
+      - name: Test qualification policy (no Cargo)
+        run: python3 -m unittest discover -s tools/qualification -p 'test_*.py' -v
+
+      - name: Install exact toolchains (no shared caches)
+        run: |
+          rustup toolchain install 1.96.0 --profile minimal --target wasm32-unknown-unknown
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Snapshot source and prepare exact SDK override
+        run: |
+          python3 tools/qualification/sdk_override.py prepare "$EVIDENCE"
+          git archive --format=tar.gz HEAD -o "$EVIDENCE/js-source.tar.gz"
+          {
+            rustc -Vv
+            cargo -V
+            node --version
+            pnpm --version
+          } | tee "$EVIDENCE/toolchains.txt"
+
+      - name: Install wasm-bindgen matching the effective lock
+        run: |
+          version="$(< "$EVIDENCE/wasm-bindgen-version.txt")"
+          cargo install wasm-bindgen-cli --version "=$version" --locked --root "$RUNNER_TEMP/qualification-tools" 2>&1 | tee "$EVIDENCE/wasm-bindgen-install.log"
+          echo "$RUNNER_TEMP/qualification-tools/bin" >> "$GITHUB_PATH"
+          echo "$EVIDENCE/bin" >> "$GITHUB_PATH"
+
+      - name: Build WASM, schema declarations, utilities and web
+        id: build
+        run: |
+          wasm-bindgen --version | tee -a "$EVIDENCE/toolchains.txt"
+          pnpm exec nx run-many -t build --projects=c2pa-wasm,c2pa-types,@contentauth/c2pa-utilities,c2pa-web --parallel=2 --skip-nx-cache 2>&1 | tee "$EVIDENCE/build.log"
+          python3 tools/qualification/sdk_override.py verify "$EVIDENCE"
+
+      - name: Lint web
+        run: |
+          pnpm exec nx run c2pa-web:lint --skip-nx-cache 2>&1 | tee "$EVIDENCE/web-lint.log"
+
+      - name: Run existing web typecheck (mandatory)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          pnpm exec nx run c2pa-web:typecheck --skip-nx-cache 2>&1 | tee "$EVIDENCE/web-typecheck.log"
+
+      - name: Run existing utilities typecheck (mandatory)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          pnpm exec nx run c2pa-utilities:typecheck --skip-nx-cache 2>&1 | tee "$EVIDENCE/utilities-typecheck.log"
+
+      - name: Install Chromium and Firefox
+        id: browsers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm --dir packages/c2pa-web exec playwright install --with-deps chromium firefox
+
+      - name: Full web suite including offsets (Chromium)
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: |
+          pnpm --dir packages/c2pa-web exec vitest run --browser=chromium --testTimeout=60000 --reporter=default --reporter=json --outputFile.json="$EVIDENCE/chromium.json" 2>&1 | tee "$EVIDENCE/chromium.log"
+
+      - name: Full web suite including offsets (Firefox)
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: |
+          pnpm --dir packages/c2pa-web exec vitest run --browser=firefox --testTimeout=60000 --reporter=default --reporter=json --outputFile.json="$EVIDENCE/firefox.json" 2>&1 | tee "$EVIDENCE/firefox.log"
+
+      - name: Require full non-skipped offset coverage and unchanged lock
+        if: ${{ !cancelled() }}
+        run: |
+          python3 tools/qualification/sdk_override.py verify "$EVIDENCE"
+          python3 tools/qualification/sdk_override.py reports "$EVIDENCE"
+
+      - name: Retain candidate evidence and WASM with SRI (never publish)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fragment-offset-${{ github.event.pull_request.head.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/fragment-offset-evidence
+            packages/c2pa-wasm/pkg
+            packages/c2pa-web/dist

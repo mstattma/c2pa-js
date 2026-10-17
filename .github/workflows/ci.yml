@@ -26,6 +26,15 @@ jobs:
         run: cargo +nightly fmt --all -- --check
 
   main:
+    # This fork-only candidate pair is checked by fragment-offset-qualification.yml.
+    # Stock 0.91.0 cannot compile the offset API until upstream SDK #2832 lands.
+    if: >-
+      ${{ !(github.repository == 'mstattma/c2pa-js' &&
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == 'mstattma/c2pa-js' &&
+        github.event.pull_request.head.ref == 'feat/upstream-fragment-base-offset' &&
+        github.event.pull_request.user.login == 'mstattma' &&
+        github.event.pull_request.author_association == 'OWNER') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
