@@ -4,6 +4,11 @@ The SDK for interacting with [C2PA metadata](https://c2pa.org/) on the web.
 
 As a guiding philosophy, `c2pa-web` attempts to adhere closely to the API paradigms established by [`c2pa-rs`](https://github.com/contentauth/c2pa-rs).
 
+The single-file fragment-offset source patch currently requires the unreleased
+SDK offset API (upstream SDK #2832); the committed registry `c2pa = "=0.91.0"`
+does not provide it. The fork's [candidate-pair qualification](../../.github/qualification/README.md)
+uses an exact CI-only SDK override and does not define a published package pin.
+
 ## Installation
 
 ```sh
