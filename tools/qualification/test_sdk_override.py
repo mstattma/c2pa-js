@@ -195,6 +195,12 @@ class WorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("push:", qualification)
         self.assertNotIn("cache:", qualification)
         self.assertNotIn("continue-on-error", qualification)
+        for name in ("Run existing web typecheck (mandatory)",
+                     "Run existing utilities typecheck (mandatory)",
+                     "Install Chromium and Firefox", "Full web suite including offsets (Chromium)",
+                     "Full web suite including offsets (Firefox)"):
+            step = qualification.split(f"- name: {name}\n")[1].split("\n      - ")[0]
+            self.assertIn("!cancelled() && steps.", step)
         self.assertNotIn("runner.temp", qualification.split("    steps:")[0])
         self.assertIn("persist-credentials: false", qualification)
         self.assertIn("retention-days: 14", qualification)

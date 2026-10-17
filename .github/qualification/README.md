@@ -60,6 +60,10 @@ full web suite runs separately on Chromium and Firefox with `testTimeout=60000`.
 Both JSON reports must pass and each must contain all nine offset tests with
 no skipped/pending cases. Assertions are not relaxed for this newer SDK. Any
 semantic baseline differences must be investigated/reported, not suppressed.
+After a successful build, typechecks and both browsers run independently so a
+typecheck failure still retains browser evidence. Every failure remains fatal
+to the job; there is no `continue-on-error`. Nx schedules the selected build
+targets together to avoid compiling WASM twice through web dependencies.
 
 Artifacts are retained for 14 days: original/effective manifest and lock,
 source identities and tracked JS source archive, full Cargo metadata, effective
