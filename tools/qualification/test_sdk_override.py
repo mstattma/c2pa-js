@@ -195,6 +195,7 @@ class WorkflowPolicyTests(unittest.TestCase):
         self.assertNotIn("push:", qualification)
         self.assertNotIn("cache:", qualification)
         self.assertNotIn("continue-on-error", qualification)
+        self.assertNotIn("runner.temp", qualification.split("    steps:")[0])
         self.assertIn("persist-credentials: false", qualification)
         self.assertIn("retention-days: 14", qualification)
         for line in qualification.splitlines():
