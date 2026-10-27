@@ -26,6 +26,27 @@ jobs:
       - run: pnpm test:docs
       - run: pnpm ci:docs:releases
 
+  utilities-settings:
+    name: Node-only utilities settings typings and serialization
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - name: Install dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Typecheck settings facade and focused tests
+        working-directory: packages/c2pa-utilities
+        run: pnpm exec tsc --project tsconfig.settings.json
+      - name: Test settings serialization without native builds
+        working-directory: packages/c2pa-utilities
+        run: pnpm exec vitest run src/settings.spec.ts src/caseConversion.spec.ts --maxWorkers=1 --no-file-parallelism
+
   cargo_fmt:
     name: Enforce Rust code format
     runs-on: ubuntu-24.04
