@@ -270,14 +270,24 @@ export function createReaderFactory(
  */
 export interface FragmentOptions {
   /**
-   * Absolute byte offset of the fragment's first byte within a single-file fragmented MP4.
+   * The offset is the absolute byte position of the supplied segment buffer's first byte in
+   * the original single-file signed asset. The verifier adds this offset to each included
+   * root box's position within the segment buffer to reproduce its signed position.
    *
-   * The hard binding of such an asset covers absolute box offsets, so a fragment cut out of it
-   * (one byte-range HLS segment, for instance) can only be verified when the reader knows where
-   * it sat in the file. The cut must follow the leaf boundaries: the init blob is everything
-   * before the first C2PA `merkle` uuid box, and each fragment runs from one `merkle` uuid box to
-   * the next (the last one to end of file). Any other cut, or the wrong offset, reports
-   * `assertion.bmffHash.mismatch`.
+   * The buffer must reproduce the selected leaf's included bytes and root-box offsets.
+   * UUID-to-UUID cuts are the documented recipe for the current default-exclusion layout.
+   * For that recipe, the init blob is everything before the first C2PA `merkle` uuid box,
+   * and each fragment runs from one `merkle` uuid box to the next (the last one to end of file).
+   * When a segment-local `sidx` is fully excluded by the signed assertion, the buffer may
+   * begin with that `sidx`; pass its absolute position as the starting offset. The required
+   * Merkle information must still be in the buffer.
+   *
+   * With a valid init and a parseable segment, hash failures caused by a wrong cut or offset
+   * are reported as `assertion.bmffHash.mismatch`. Segment-parsing failures also appear in
+   * validation results; initialization-loading errors can throw.
+   *
+   * https://github.com/c2pa-org/specs-core/issues/2642 proposes segment-coherent hash boundaries.
+   * The offset parameter remains applicable wherever binding includes absolute box positions.
    *
    * Omit it (or pass `0`) for fragments that are their own files. Must be a non-negative safe
    * integer; anything else throws a `RangeError`.

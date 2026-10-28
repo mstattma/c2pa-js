@@ -85,9 +85,26 @@ impl WasmReader {
     /// Optionally accepts a context JSON string to configure the reader.
     ///
     /// `fragment_base_offset` is for a fragment cut out of a single-file fragmented BMFF asset
-    /// (for example one byte-range HLS segment): it is the absolute byte offset of the fragment's
-    /// first byte within that asset, which the asset's hard binding covers. Leave it `undefined`
-    /// (or `0`) for a fragment that is its own file. It must be a non-negative safe integer.
+    /// (for example one byte-range HLS segment). The offset is the absolute byte position of
+    /// the supplied segment buffer's first byte in the original single-file signed asset.
+    /// The verifier adds this offset to each included root box's position within the segment
+    /// buffer to reproduce its signed position.
+    ///
+    /// The buffer must reproduce the selected leaf's included bytes and root-box offsets.
+    /// UUID-to-UUID cuts are the documented recipe for the current default-exclusion layout.
+    /// When a segment-local `sidx` is fully excluded by the signed assertion, the buffer may
+    /// begin with that `sidx`; pass its absolute position as the starting offset. The required
+    /// Merkle information must still be in the buffer.
+    ///
+    /// With a valid init and a parseable segment, hash failures caused by a wrong cut or offset
+    /// are reported as `assertion.bmffHash.mismatch`. Segment-parsing failures also appear
+    /// in validation results; initialization loading can return an error.
+    ///
+    /// https://github.com/c2pa-org/specs-core/issues/2642 proposes segment-coherent hash boundaries.
+    /// The offset parameter remains applicable wherever binding includes absolute box positions.
+    ///
+    /// Leave it `undefined` (or `0`) for a fragment that is its own file.
+    /// It must be a non-negative safe integer.
     #[wasm_bindgen(js_name = fromBlobFragment)]
     pub async fn from_blob_fragment(
         format: &str,

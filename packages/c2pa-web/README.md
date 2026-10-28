@@ -152,7 +152,7 @@ For fragmented MP4 that ships as separate files (an initialization segment plus 
 const reader = await Reader.fromBlobFragment(c2pa, 'video/mp4', initBlob, segmentBlob);
 ```
 
-For a **single-file** fragmented MP4 served by byte range (HLS `EXT-X-BYTERANGE`), the asset's hard binding covers absolute byte offsets, so the reader must also be told where the segment sat in the file:
+For a **single-file** fragmented MP4 served by byte range (HLS `EXT-X-BYTERANGE`), pass `fragmentBaseOffset`. The offset is the absolute byte position of the supplied segment buffer's first byte in the original single-file signed asset. The verifier adds this offset to each included root box's position within the segment buffer to reproduce its signed position.
 
 ```typescript
 const reader = await Reader.fromBlobFragment(
@@ -165,9 +165,13 @@ const reader = await Reader.fromBlobFragment(
 );
 ```
 
-The cut has to follow the leaf boundaries: the init blob is everything before the first C2PA `merkle` uuid box, and each segment runs from one `merkle` uuid box to the next (the last one to end of file). A segment cut anywhere else, or verified at the wrong offset, reports `assertion.bmffHash.mismatch`. Players expose the offset per segment (`Fragment.byteRangeStartOffset` in hls.js, `SegmentReference.getStartByte()` in Shaka).
+The buffer must reproduce the selected leaf's included bytes and root-box offsets. UUID-to-UUID cuts are the documented recipe for the current default-exclusion layout. For that recipe, the init blob is everything before the first C2PA `merkle` uuid box, and each segment runs from one `merkle` uuid box to the next (the last one to end of file). When a segment-local `sidx` is fully excluded by the signed assertion, the buffer may begin with that `sidx`; pass its absolute position as the starting offset. The required Merkle information must still be in the buffer.
 
-Byte ranges that a player derives from the file's own `sidx` boxes (DASH on-demand `SegmentBase`, or an HLS playlist cut at each `sidx`) do **not** match as delivered: a leaf runs up to the next `moof`, so it includes the following fragment's `sidx`, while a `sidx` reference ends at the end of the `mdat`. Regroup the bytes before calling the reader: everything in a segment before its C2PA `merkle` box belongs to the previous leaf.
+With a valid init and a parseable segment, hash failures caused by a wrong cut or offset are reported as `assertion.bmffHash.mismatch`. Segment-parsing failures also appear in validation results; initialization-loading errors can throw. Players expose the offset per segment (`Fragment.byteRangeStartOffset` in hls.js, `SegmentReference.getStartByte()` in Shaka). Omit `fragmentBaseOffset` (or pass `0`) for fragments stored as separate files.
+
+With the current default-exclusion layout, byte ranges that a player derives from the file's own `sidx` boxes (DASH on-demand `SegmentBase`, or an HLS playlist cut at each `sidx`) need regrouping before calling the reader: a leaf runs up to the next `moof`, so it includes the following fragment's `sidx`, while a `sidx` reference ends at the end of the `mdat`.
+
+[specs-core#2642](https://github.com/c2pa-org/specs-core/issues/2642) proposes segment-coherent hash boundaries. The offset parameter remains applicable wherever binding includes absolute box positions.
 
 ### Building C2PA manifests with ingredients
 

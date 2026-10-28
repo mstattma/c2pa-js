@@ -16,8 +16,9 @@ For each prefix: `<prefix>.init.mp4` is every byte before the first `merkle`
 uuid box; `<prefix>.segNN.m4s` runs from `merkle` uuid box N to the next one
 (the last one to end of file). `layout.ts` records each segment's absolute
 offset in the signed file, which is what an HLS `EXT-X-BYTERANGE` provides.
-`<prefix>.sidxcut01.m4s` is fragment 1 cut the wrong way, from its `sidx` to
-the end of its `mdat`, for the negative test.
+`<prefix>.sidxcut01.m4s` is fragment 1 cut from its `sidx` to the end of its
+`mdat`, for a negative test of these fixtures' current default-exclusion
+layout.
 
 Signed with the c2pa-rs test certificates (`sdk/tests/fixtures/certs/es256.*`),
 so the specs disable trust verification.
