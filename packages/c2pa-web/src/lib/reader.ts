@@ -82,21 +82,40 @@ export class Reader {
    * @param c2pa The `C2pa` instance (from {@link createC2pa}) to create this reader on.
    * @param format Asset format (MIME type or extension). Unlike {@link fromBlob}, fragmented
    * assets cannot be auto-detected from their bytes, so a format must be supplied.
+   * For a fragment stored as its own file (DASH/HLS with separate segment files), pass the two
+   * blobs. For a fragment cut out of a single-file fragmented MP4 (byte-range HLS), also pass
+   * `options.fragmentBaseOffset`; see {@link FragmentOptions}.
+   *
    * @param init Blob of initial fragment bytes.
    * @param fragment Blob of fragment bytes.
    * @param context Optional `Context` configuring this reader's behavior.
+   * @param options Optional {@link FragmentOptions}.
    * @returns A {@link Reader} object or null if no C2PA metadata was found.
-   * @throws If the asset is too large.
+   * @throws If the asset is too large, or `RangeError` if `options.fragmentBaseOffset` is not a
+   * non-negative safe integer.
    */
   static async fromBlobFragment(
     c2pa: C2pa,
     format: string,
     init: Blob,
     fragment: Blob,
-    context: Context = new Context()
+    context: Context = new Context(),
+    options: FragmentOptions = {}
   ): Promise<Reader | null> {
     validateAssetSize(init.size, MAX_SIZE_IN_BYTES);
     validateAssetSize(fragment.size, MAX_SIZE_IN_BYTES);
+
+    const { fragmentBaseOffset } = options;
+    if (
+      fragmentBaseOffset !== undefined &&
+      !(Number.isSafeInteger(fragmentBaseOffset) && fragmentBaseOffset >= 0)
+    ) {
+      throw new RangeError(
+        `fragmentBaseOffset must be a non-negative safe integer, got ${String(
+          fragmentBaseOffset
+        )}`
+      );
+    }
 
     try {
       const settingsJson = await context.toJson();
@@ -106,7 +125,8 @@ export class Reader {
         format,
         init,
         fragment,
-        settingsJson
+        settingsJson,
+        fragmentBaseOffset
       );
 
       const reader = new Reader(worker, readerId);
@@ -243,6 +263,36 @@ export function createReaderFactory(
         new Context(mergeSettings(baseSettings, settings))
       )
   };
+}
+
+/**
+ * Options for {@link Reader.fromBlobFragment}.
+ */
+export interface FragmentOptions {
+  /**
+   * The offset is the absolute byte position of the supplied segment buffer's first byte in
+   * the original single-file signed asset. The verifier adds this offset to each included
+   * root box's position within the segment buffer to reproduce its signed position.
+   *
+   * The buffer must reproduce the selected leaf's included bytes and root-box offsets.
+   * UUID-to-UUID cuts are the documented recipe for the current default-exclusion layout.
+   * For that recipe, the init blob is everything before the first C2PA `merkle` uuid box,
+   * and each fragment runs from one `merkle` uuid box to the next (the last one to end of file).
+   * When a segment-local `sidx` is fully excluded by the signed assertion, the buffer may
+   * begin with that `sidx`; pass its absolute position as the starting offset. The required
+   * Merkle information must still be in the buffer.
+   *
+   * With a valid init and a parseable segment, hash failures caused by a wrong cut or offset
+   * are reported as `assertion.bmffHash.mismatch`. Segment-parsing failures also appear in
+   * validation results; initialization-loading errors can throw.
+   *
+   * https://github.com/c2pa-org/specs-core/issues/2642 proposes segment-coherent hash boundaries.
+   * The offset parameter remains applicable wherever binding includes absolute box positions.
+   *
+   * Omit it (or pass `0`) for fragments that are their own files. Must be a non-negative safe
+   * integer; anything else throws a `RangeError`.
+   */
+  fragmentBaseOffset?: number;
 }
 
 function handleReaderCreationError(maybeError: unknown): null {

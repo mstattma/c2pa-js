@@ -4,6 +4,11 @@ The SDK for interacting with [C2PA metadata](https://c2pa.org/) on the web.
 
 As a guiding philosophy, `c2pa-web` attempts to adhere closely to the API paradigms established by [`c2pa-rs`](https://github.com/contentauth/c2pa-rs).
 
+The single-file fragment-offset source patch currently requires the unreleased
+SDK offset API (upstream SDK #2832); the committed registry `c2pa = "=0.91.0"`
+does not provide it. The fork's [candidate-pair qualification](../../.github/qualification/README.md)
+uses an exact CI-only SDK override and does not define a published package pin.
+
 ## Installation
 
 ```sh
@@ -138,6 +143,35 @@ await reader.free();
 
 > [!WARNING]
 > `Reader.fromBlob`'s `format` argument (typically `blob.type`) is optional. If it's omitted or empty, the native library falls back to detecting the format from the asset's bytes. **This is not a feature to lean on.** Always supply `format` when it's known, as byte-based detection is slower than a direct lookup and can be unreliable, which could surface as more confusing errors later on. Only omit it when the caller has no way to determine the asset's format. `Reader.fromBlobFragment` and the `Builder` API always require an explicit format.
+
+### Reading fragmented video (DASH / HLS)
+
+For fragmented MP4 that ships as separate files (an initialization segment plus `.m4s` segment files), pass the init bytes and one segment at a time:
+
+```typescript
+const reader = await Reader.fromBlobFragment(c2pa, 'video/mp4', initBlob, segmentBlob);
+```
+
+For a **single-file** fragmented MP4 served by byte range (HLS `EXT-X-BYTERANGE`), pass `fragmentBaseOffset`. The offset is the absolute byte position of the supplied segment buffer's first byte in the original single-file signed asset. The verifier adds this offset to each included root box's position within the segment buffer to reproduce its signed position.
+
+```typescript
+const reader = await Reader.fromBlobFragment(
+  c2pa,
+  'video/mp4',
+  initBlob,
+  segmentBlob,
+  undefined, // context
+  { fragmentBaseOffset: byteRangeStart } // absolute offset of segmentBlob's first byte
+);
+```
+
+The buffer must reproduce the selected leaf's included bytes and root-box offsets. UUID-to-UUID cuts are the documented recipe for the current default-exclusion layout. For that recipe, the init blob is everything before the first C2PA `merkle` uuid box, and each segment runs from one `merkle` uuid box to the next (the last one to end of file). When a segment-local `sidx` is fully excluded by the signed assertion, the buffer may begin with that `sidx`; pass its absolute position as the starting offset. The required Merkle information must still be in the buffer.
+
+With a valid init and a parseable segment, hash failures caused by a wrong cut or offset are reported as `assertion.bmffHash.mismatch`. Segment-parsing failures also appear in validation results; initialization-loading errors can throw. Players expose the offset per segment (`Fragment.byteRangeStartOffset` in hls.js, `SegmentReference.getStartByte()` in Shaka). Omit `fragmentBaseOffset` (or pass `0`) for fragments stored as separate files.
+
+With the current default-exclusion layout, byte ranges that a player derives from the file's own `sidx` boxes (DASH on-demand `SegmentBase`, or an HLS playlist cut at each `sidx`) need regrouping before calling the reader: a leaf runs up to the next `moof`, so it includes the following fragment's `sidx`, while a `sidx` reference ends at the end of the `mdat`.
+
+[specs-core#2642](https://github.com/c2pa-org/specs-core/issues/2642) proposes segment-coherent hash boundaries. The offset parameter remains applicable wherever binding includes absolute box positions.
 
 ### Building C2PA manifests with ingredients
 

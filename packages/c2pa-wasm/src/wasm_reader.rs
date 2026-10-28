@@ -83,17 +83,48 @@ impl WasmReader {
 
     /// Attempts to create a new `WasmReader` from an asset format, a `Blob` of the bytes of the initial segment, and a fragment `Blob`.
     /// Optionally accepts a context JSON string to configure the reader.
+    ///
+    /// `fragment_base_offset` is for a fragment cut out of a single-file fragmented BMFF asset
+    /// (for example one byte-range HLS segment). The offset is the absolute byte position of
+    /// the supplied segment buffer's first byte in the original single-file signed asset.
+    /// The verifier adds this offset to each included root box's position within the segment
+    /// buffer to reproduce its signed position.
+    ///
+    /// The buffer must reproduce the selected leaf's included bytes and root-box offsets.
+    /// UUID-to-UUID cuts are the documented recipe for the current default-exclusion layout.
+    /// When a segment-local `sidx` is fully excluded by the signed assertion, the buffer may
+    /// begin with that `sidx`; pass its absolute position as the starting offset. The required
+    /// Merkle information must still be in the buffer.
+    ///
+    /// With a valid init and a parseable segment, hash failures caused by a wrong cut or offset
+    /// are reported as `assertion.bmffHash.mismatch`. Segment-parsing failures also appear
+    /// in validation results; initialization loading can return an error.
+    ///
+    /// https://github.com/c2pa-org/specs-core/issues/2642 proposes segment-coherent hash boundaries.
+    /// The offset parameter remains applicable wherever binding includes absolute box positions.
+    ///
+    /// Leave it `undefined` (or `0`) for a fragment that is its own file.
+    /// It must be a non-negative safe integer.
     #[wasm_bindgen(js_name = fromBlobFragment)]
     pub async fn from_blob_fragment(
         format: &str,
         init: &Blob,
         fragment: &Blob,
         context_json: Option<String>,
+        fragment_base_offset: Option<f64>,
     ) -> Result<WasmReader, JsString> {
         let init_stream = BlobStream::new(init).map_err(WasmError::other)?;
         let fragment_stream = BlobStream::new(fragment).map_err(WasmError::other)?;
+        let fragment_base_offset = base_offset_from_js(fragment_base_offset)?;
 
-        WasmReader::from_stream_fragment(format, init_stream, fragment_stream, context_json).await
+        WasmReader::from_stream_fragment(
+            format,
+            init_stream,
+            fragment_stream,
+            context_json,
+            fragment_base_offset,
+        )
+        .await
     }
 
     async fn from_stream_fragment(
@@ -101,6 +132,7 @@ impl WasmReader {
         init: impl Read + Seek + Send,
         fragment: impl Read + Seek + Send,
         context_json: Option<String>,
+        fragment_base_offset: u64,
     ) -> Result<WasmReader, JsString> {
         let context = match context_json {
             Some(json) => Context::new()
@@ -109,7 +141,7 @@ impl WasmReader {
             None => Context::new(),
         };
         let reader = Reader::from_context(context)
-            .with_fragment_async(format, init, fragment)
+            .with_fragment_at_offset_async(format, init, fragment, fragment_base_offset)
             .await
             .map_err(WasmError::from)?;
 
@@ -174,6 +206,25 @@ impl WasmReader {
             .map_err(WasmError::from)?;
 
         Ok(cursor_to_u8array(stream)?)
+    }
+}
+
+/// Largest integer JavaScript represents exactly (`Number.MAX_SAFE_INTEGER`).
+const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
+
+/// Converts an optional JavaScript number into a byte offset.
+///
+/// JavaScript numbers are doubles, so the value is only accepted when it is a
+/// finite, non-negative integer no larger than `Number.MAX_SAFE_INTEGER`;
+/// anything else (including `NaN`, `-1` or `1.5`) is rejected rather than
+/// silently truncated into a different offset. `undefined` means `0`.
+fn base_offset_from_js(value: Option<f64>) -> Result<u64, JsString> {
+    match value {
+        None => Ok(0),
+        Some(v) if (0.0..=MAX_SAFE_INTEGER).contains(&v) && v.fract() == 0.0 => Ok(v as u64),
+        Some(v) => Err(JsString::from(format!(
+            "fragmentBaseOffset must be a non-negative safe integer, got {v}"
+        ))),
     }
 }
 
